@@ -3,9 +3,9 @@
 // @updateURL    https://raw.githubusercontent.com/z7686n/test/main/zdh.js
 // @name         多功能工具箱
 // @namespace    http://tampermonkey.net/
-// @version      4.1
-// @description  可扩展悬浮工具箱，拖动/最小化/记忆位置，内置标签选择器模块
-// @author       You
+// @version      1.1.1
+// @description  可扩展工具箱，内置标签选择器模块
+// @author       Z
 // @match        *://*/*
 // @grant        none
 // ==/UserScript==
