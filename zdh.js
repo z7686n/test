@@ -1,6 +1,6 @@
 // ==UserScript==
-// @downloadURL  https://raw.githubusercontent.com/z7686n/test/main/deepseek_javascript_20260624_cfb3be.js
-// @updateURL    https://raw.githubusercontent.com/z7686n/test/main/deepseek_javascript_20260624_cfb3be.js
+// @downloadURL  https://raw.githubusercontent.com/z7686n/test/main/zdh.js
+// @updateURL    https://raw.githubusercontent.com/z7686n/test/main/zdh.js
 // @name         多功能工具箱
 // @namespace    http://tampermonkey.net/
 // @version      4.1
