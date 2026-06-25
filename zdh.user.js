@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         标签批量选择器
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
+// @version      1.2.1
 // @description  批量选择 Ant Design 标签 + TreeSelect下拉框，按钮式，高性能
 // @author       Z
 // @match        *://*/*
