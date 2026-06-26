@@ -77,7 +77,6 @@ window.__MODULES__.ui = (function() {
         currentMode = mode;
         tagOps.setMode(mode);
         
-        // 更新导航按钮高亮
         var navBtns = $$('.nav-btn', panel);
         navBtns.forEach(function(btn) {
             var btnMode = btn.dataset.mode;
@@ -92,15 +91,12 @@ window.__MODULES__.ui = (function() {
             }
         });
 
-        // 重新渲染标签按钮
-        renderTags();
-        
-        // 更新标题
-        var titleEl = $('#mode-title', panel);
-        if (titleEl) {
-            titleEl.textContent = mode.toUpperCase() + ' 模式';
+        var modeTitle = panel.querySelector('.mode-title');
+        if (modeTitle) {
+            modeTitle.textContent = mode.toUpperCase();
         }
-        
+
+        renderTags();
         showToast('🔄 切换到 ' + mode.toUpperCase() + ' 模式');
     }
 
@@ -109,9 +105,7 @@ window.__MODULES__.ui = (function() {
         var container = $('#tag-btn-container', panel);
         if (!container) return;
         
-        // 清空容器
         container.innerHTML = '';
-        
         var tags = getCurrentTags();
         var selectedTags = tagOps.getSelectedTags();
         
@@ -134,7 +128,6 @@ window.__MODULES__.ui = (function() {
             container.append(btn);
         });
         
-        // 更新计数
         var countEl = $('#selected-count', panel);
         if (countEl) {
             countEl.textContent = '已选 ' + selectedTags.size + ' 个';
@@ -145,20 +138,25 @@ window.__MODULES__.ui = (function() {
     function buildPanel() {
         if (document.getElementById('tag-selector-panel')) return;
 
-        // 注入样式
         if (!document.getElementById('tag-min-style')) {
             var style = document.createElement('style');
             style.id = 'tag-min-style';
             style.textContent = 
                 '#tag-selector-panel.minimized {' +
-                'width:42px !important;height:42px !important;' +
-                'border-radius:50% !important;padding:0 !important;' +
+                'width:auto !important;height:auto !important;' +
+                'border-radius:20px !important;padding:6px 16px !important;' +
                 'overflow:hidden !important;cursor:pointer !important;' +
+                'min-width:120px !important;' +
+                'background:#1a1a2e !important;' +
+                'border:1px solid #4fc3f7 !important;' +
+                'box-shadow:0 4px 20px rgba(0,0,0,0.6) !important;' +
                 '}' +
                 '#tag-selector-panel.minimized > div:not(.title-bar) { display:none !important; }' +
-                '#tag-selector-panel.minimized .title-text { display:none !important; }' +
-                '#tag-selector-panel.minimized .toggle-btn { font-size:22px !important; }' +
-                '#tag-selector-panel.minimized .title-bar { margin-bottom:0 !important; justify-content:center !important; }' +
+                '#tag-selector-panel.minimized .title-text { display:inline !important; font-size:14px !important; }' +
+                '#tag-selector-panel.minimized .nav-btn { display:none !important; }' +
+                '#tag-selector-panel.minimized .mode-title { display:none !important; }' +
+                '#tag-selector-panel.minimized .toggle-btn { font-size:16px !important; margin-left:8px !important; }' +
+                '#tag-selector-panel.minimized .title-bar { margin-bottom:0 !important; justify-content:space-between !important; width:100% !important; }' +
                 '.tag-select-btn {' +
                 'padding:4px 10px;border-radius:4px;border:1px solid #444;' +
                 'background:transparent;color:#ccc;cursor:pointer;font-size:12px;' +
@@ -180,11 +178,13 @@ window.__MODULES__.ui = (function() {
                 'font-weight:bold;transition:all 0.15s ease;font-family:inherit;' +
                 '}' +
                 '.nav-btn:hover { background:#2a2a4a; border-color:#666; }' +
-                '.nav-btn.active { background:#4fc3f7 !important; color:#1a1a2e !important; border-color:#4fc3f7 !important; }';
+                '.nav-btn.active { background:#4fc3f7 !important; color:#1a1a2e !important; border-color:#4fc3f7 !important; }' +
+                '.mode-title {' +
+                'font-size:12px;color:#aaa;background:#2a2a4a;padding:2px 8px;border-radius:3px;' +
+                '}';
             document.head.append(style);
         }
 
-        // 创建面板
         panel = document.createElement('div');
         panel.id = 'tag-selector-panel';
         var pos = loadPosition();
@@ -198,21 +198,20 @@ window.__MODULES__.ui = (function() {
             'transition:width 0.3s,height 0.3s,border-radius 0.3s,padding 0.3s;' +
             'max-height:90vh;overflow-y:auto;';
 
-        // ---- 标题栏（含导航） ----
+        // ---- 标题栏 ----
         var titleBar = document.createElement('div');
         titleBar.className = 'title-bar';
         titleBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-shrink:0;';
-        
+
         var titleLeft = document.createElement('span');
         titleLeft.style.cssText = 'display:flex;align-items:center;gap:8px;';
         titleLeft.innerHTML = 
             '<span class="title-text" style="font-weight:bold;font-size:16px;color:#4fc3f7;">🏷️ 标注助手</span>' +
-            '<span id="mode-title" style="font-size:12px;color:#aaa;background:#2a2a4a;padding:2px 8px;border-radius:3px;">CPV 模式</span>';
-        
+            '<span class="mode-title" style="font-size:12px;color:#aaa;background:#2a2a4a;padding:2px 8px;border-radius:3px;">CPV</span>';
+
         var navGroup = document.createElement('span');
         navGroup.style.cssText = 'display:flex;gap:4px;';
-        
-        // CPV 导航按钮
+
         var cpvNavBtn = document.createElement('button');
         cpvNavBtn.className = 'nav-btn active';
         cpvNavBtn.dataset.mode = 'cpv';
@@ -221,22 +220,20 @@ window.__MODULES__.ui = (function() {
         cpvNavBtn.style.color = '#1a1a2e';
         cpvNavBtn.addEventListener('click', function() { switchMode('cpv'); });
         navGroup.append(cpvNavBtn);
-        
-        // SKU 导航按钮
+
         var skuNavBtn = document.createElement('button');
         skuNavBtn.className = 'nav-btn';
         skuNavBtn.dataset.mode = 'sku';
         skuNavBtn.textContent = 'SKU';
         skuNavBtn.addEventListener('click', function() { switchMode('sku'); });
         navGroup.append(skuNavBtn);
-        
-        // 最小化按钮
+
         var toggleBtn = document.createElement('span');
         toggleBtn.className = 'toggle-btn';
         toggleBtn.style.cssText = 'cursor:pointer;font-size:20px;color:#aaa;padding:0 6px;';
         toggleBtn.textContent = '−';
         toggleBtn.title = '最小化';
-        
+
         titleBar.append(titleLeft);
         titleBar.append(navGroup);
         titleBar.append(toggleBtn);
@@ -356,7 +353,6 @@ window.__MODULES__.ui = (function() {
 
         document.body.append(panel);
         
-        // 初始化：渲染 CPV 的标签
         renderTags();
         initDraggable(panel);
     }
@@ -372,7 +368,7 @@ window.__MODULES__.ui = (function() {
             isMinimizedLocal = true;
             isMinimized = true;
             el.classList.add('minimized');
-            toggleBtn.textContent = '🏷️';
+            toggleBtn.textContent = '➕';
             toggleBtn.title = '展开面板';
         }
 
