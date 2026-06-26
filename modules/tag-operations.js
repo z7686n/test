@@ -1,46 +1,70 @@
-// 标签操作模块
+// 标签操作模块 - 支持多模式
 window.__MODULES__ = window.__MODULES__ || {};
 window.__MODULES__.tagOps = (function() {
-    // 内部状态
+    // 每个模式独立维护选中状态
+    var modeSelections = {
+        cpv: new Set(),
+        sku: new Set()
+    };
+    var currentMode = 'cpv';
     var isProcessing = false;
-    var selectedTags = new Set();
 
     return {
-        // 获取选中标签集合（供UI模块读取）
+        // 切换当前模式
+        setMode: function(mode) {
+            if (mode === 'cpv' || mode === 'sku') {
+                currentMode = mode;
+            }
+        },
+        
+        getCurrentMode: function() {
+            return currentMode;
+        },
+        
+        // 获取当前模式的选中集合
         getSelectedTags: function() {
-            return selectedTags;
+            return modeSelections[currentMode];
         },
         
-        // 重置选中集合（供UI模块使用）
-        resetSelectedTags: function() {
-            selectedTags.clear();
+        // 获取指定模式的选中集合
+        getModeSelections: function(mode) {
+            return modeSelections[mode] || new Set();
         },
         
-        // 切换单个标签
+        // 重置指定模式的选中集合
+        resetModeSelections: function(mode) {
+            if (modeSelections[mode]) {
+                modeSelections[mode].clear();
+            }
+        },
+        
+        // 切换单个标签（当前模式）
         toggleTag: function(tag) {
-            if (selectedTags.has(tag)) {
-                selectedTags.delete(tag);
+            var set = modeSelections[currentMode];
+            if (set.has(tag)) {
+                set.delete(tag);
             } else {
-                selectedTags.add(tag);
+                set.add(tag);
             }
-            return selectedTags;
+            return set;
         },
         
-        // 全选/取消全选
+        // 全选/取消全选（当前模式）
         toggleAllTags: function(tags) {
-            var allSelected = tags.every(function(t) { return selectedTags.has(t); });
+            var set = modeSelections[currentMode];
+            var allSelected = tags.every(function(t) { return set.has(t); });
             if (allSelected) {
-                tags.forEach(function(t) { selectedTags.delete(t); });
-                return false; // 返回 false 表示已取消全选
+                tags.forEach(function(t) { set.delete(t); });
+                return false;
             } else {
-                tags.forEach(function(t) { selectedTags.add(t); });
-                return true; // 返回 true 表示已全选
+                tags.forEach(function(t) { set.add(t); });
+                return true;
             }
         },
         
-        // 清空选择
+        // 清空当前模式选择
         clearAll: function() {
-            selectedTags.clear();
+            modeSelections[currentMode].clear();
         },
 
         // 核心：执行选中标签
@@ -126,11 +150,10 @@ window.__MODULES__.tagOps = (function() {
             });
             var msg = '🔄 已取消 ' + cleared + ' 个选中';
             showToast(msg);
-            selectedTags.clear();
+            modeSelections[currentMode].clear();
             return msg;
         },
         
-        // 获取处理状态
         isProcessing: function() {
             return isProcessing;
         }
