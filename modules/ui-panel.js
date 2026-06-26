@@ -1,4 +1,4 @@
-// UI 面板模块
+// UI 面板模块 - 完整版（含 CPV/SKU 模式）
 window.__MODULES__ = window.__MODULES__ || {};
 window.__MODULES__.ui = (function() {
     var panel = null;
@@ -109,7 +109,7 @@ window.__MODULES__.ui = (function() {
             'position:fixed;z-index:999999;background:#1a1a2e;' +
             'color:#eee;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);' +
             'font-family:"Segoe UI",Arial,sans-serif;font-size:13px;' +
-            'border:1px solid #333;user-select:none;width:300px;' +
+            'border:1px solid #333;user-select:none;width:320px;' +
             'box-sizing:border-box;padding:12px 14px;' +
             'top:' + pos.top + 'px;right:' + pos.right + 'px;' +
             'transition:width 0.3s,height 0.3s,border-radius 0.3s,padding 0.3s;' +
@@ -191,7 +191,9 @@ window.__MODULES__.ui = (function() {
         divider.style.cssText = 'border-top:1px solid #333;margin:6px 0;flex-shrink:0;';
         panel.append(divider);
 
-        // ---- 执行按钮组 ----
+        // ============================================================
+        // ---- 执行按钮组（原有功能） ----
+        // ============================================================
         var actionGroup = document.createElement('div');
         actionGroup.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;flex-shrink:0;';
 
@@ -213,6 +215,7 @@ window.__MODULES__.ui = (function() {
             return btn;
         }
 
+        // 原有的执行选中 + 清除选中按钮
         actionGroup.append(
             createBtn('✅ 执行选中', '#4fc3f7', '#0288d1', function() {
                 var tags = Array.from(tagOps.getSelectedTags());
@@ -227,7 +230,42 @@ window.__MODULES__.ui = (function() {
         );
         panel.append(actionGroup);
 
-        // ---- 下拉框操作 ----
+        // ============================================================
+        // ---- 模式专用按钮组（CPV / SKU） ----
+        // ============================================================
+        var modeGroup = document.createElement('div');
+        modeGroup.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;flex-shrink:0;';
+
+        // 引入 CPV 和 SKU 模块
+        var cpvMode = window.__MODULES__.cpvMode;
+        var skuMode = window.__MODULES__.skuMode;
+
+        if (cpvMode && typeof cpvMode.createButton === 'function') {
+            var cpvBtn = cpvMode.createButton();
+            modeGroup.append(cpvBtn);
+        } else {
+            // 如果 CPV 模块未加载，显示一个占位提示（但不会阻塞其他功能）
+            var cpvPlaceholder = document.createElement('span');
+            cpvPlaceholder.textContent = 'CPV模块未加载';
+            cpvPlaceholder.style.cssText = 'font-size:10px;color:#666;padding:4px 6px;';
+            modeGroup.append(cpvPlaceholder);
+        }
+
+        if (skuMode && typeof skuMode.createButton === 'function') {
+            var skuBtn = skuMode.createButton();
+            modeGroup.append(skuBtn);
+        } else {
+            var skuPlaceholder = document.createElement('span');
+            skuPlaceholder.textContent = 'SKU模块未加载';
+            skuPlaceholder.style.cssText = 'font-size:10px;color:#666;padding:4px 6px;';
+            modeGroup.append(skuPlaceholder);
+        }
+
+        panel.append(modeGroup);
+
+        // ============================================================
+        // ---- 下拉框操作（原有功能） ----
+        // ============================================================
         var dropdownGroup = document.createElement('div');
         dropdownGroup.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;flex-shrink:0;';
         dropdownGroup.append(
@@ -241,12 +279,15 @@ window.__MODULES__.ui = (function() {
         var status = document.createElement('div');
         status.id = 'tag-status-bar';
         status.style.cssText = 'padding-top:6px;border-top:1px solid #333;font-size:11px;color:#888;text-align:center;flex-shrink:0;';
-        status.textContent = '就绪 | ' + CONFIG.tags.length + ' 种标签';
+        status.textContent = '就绪 | ' + CONFIG.tags.length + ' 种标签 | CPV/SKU 模式已加载';
         panel.append(status);
 
         document.body.append(panel);
         initDraggable(panel);
         updateTagButtons();
+
+        // 在控制台输出模块加载状态
+        console.log('✅ UI 面板加载完成，CPV:', !!cpvMode, 'SKU:', !!skuMode);
     }
 
     // ====== 拖动和最小化 ======
