@@ -1,5 +1,6 @@
-// 所有配置集中管理
-export const CONFIG = {
+// 不再使用 export，直接定义全局对象
+window.__MODULES__ = window.__MODULES__ || {};
+window.__MODULES__.CONFIG = {
     clickDelay: 50,
     debug: false,
     storageKey: 'tag-panel-pos',
