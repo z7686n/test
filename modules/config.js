@@ -1,11 +1,12 @@
-// 不再使用 export，直接定义全局对象
+// 配置模块 - 所有可调整参数集中管理
 window.__MODULES__ = window.__MODULES__ || {};
 window.__MODULES__.CONFIG = {
-    clickDelay: 50,
-    debug: false,
-    storageKey: 'tag-panel-pos',
-    defaultPosition: { top: 100, right: 20 },
-    dropdownTimeout: 500,
+    clickDelay: 50,          // 标签点击间隔(ms)
+    debug: false,            // 是否开启调试日志
+    storageKey: 'tag-panel-pos',  // 面板位置存储键名
+    defaultPosition: { top: 100, right: 20 },  // 面板默认位置
+    dropdownTimeout: 500,    // 下拉框超时(ms)
+    // 所有标签列表（按需增删改）
     tags: [
         '准确', '错误', '无法判断', 'image', 'subject',
         'seller_filled_cpv', '答非所问(输出了其他P的V)',
