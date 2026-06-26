@@ -1,8 +1,9 @@
-// UI 面板模块 - 完整版（含 CPV/SKU 模式）
+// UI 面板模块 - 主页面导航 + CPV/SKU 子页面
 window.__MODULES__ = window.__MODULES__ || {};
 window.__MODULES__.ui = (function() {
     var panel = null;
     var isMinimized = false;
+    var currentMode = 'cpv';
     var tagOps = window.__MODULES__.tagOps;
     var treeSelectOps = window.__MODULES__.treeSelectOps;
     var CONFIG = window.__MODULES__.CONFIG;
@@ -22,6 +23,11 @@ window.__MODULES__.ui = (function() {
             }
         } catch (e) {}
         return { top: CONFIG.defaultPosition.top, right: CONFIG.defaultPosition.right };
+    }
+
+    // ====== 获取当前模式的标签列表 ======
+    function getCurrentTags() {
+        return CONFIG.modes[currentMode].tags;
     }
 
     // ====== 更新标签按钮状态 ======
@@ -65,6 +71,76 @@ window.__MODULES__.ui = (function() {
         }
     }
 
+    // ====== 切换模式 ======
+    function switchMode(mode) {
+        if (mode === currentMode) return;
+        currentMode = mode;
+        tagOps.setMode(mode);
+        
+        // 更新导航按钮高亮
+        var navBtns = $$('.nav-btn', panel);
+        navBtns.forEach(function(btn) {
+            var btnMode = btn.dataset.mode;
+            if (btnMode === mode) {
+                btn.classList.add('active');
+                btn.style.background = '#4fc3f7';
+                btn.style.color = '#1a1a2e';
+            } else {
+                btn.classList.remove('active');
+                btn.style.background = 'transparent';
+                btn.style.color = '#aaa';
+            }
+        });
+
+        // 重新渲染标签按钮
+        renderTags();
+        
+        // 更新标题
+        var titleEl = $('#mode-title', panel);
+        if (titleEl) {
+            titleEl.textContent = mode.toUpperCase() + ' 模式';
+        }
+        
+        showToast('🔄 切换到 ' + mode.toUpperCase() + ' 模式');
+    }
+
+    // ====== 渲染标签按钮 ======
+    function renderTags() {
+        var container = $('#tag-btn-container', panel);
+        if (!container) return;
+        
+        // 清空容器
+        container.innerHTML = '';
+        
+        var tags = getCurrentTags();
+        var selectedTags = tagOps.getSelectedTags();
+        
+        tags.forEach(function(tag) {
+            var btn = document.createElement('button');
+            btn.className = 'tag-select-btn';
+            btn.dataset.tag = tag;
+            btn.textContent = tag;
+            if (selectedTags.has(tag)) {
+                btn.classList.add('active');
+                btn.style.background = '#4fc3f7';
+                btn.style.color = '#1a1a2e';
+                btn.style.borderColor = '#4fc3f7';
+            } else {
+                btn.style.background = 'transparent';
+                btn.style.color = '#ccc';
+                btn.style.borderColor = '#444';
+            }
+            btn.addEventListener('click', function() { toggleTag(tag); });
+            container.append(btn);
+        });
+        
+        // 更新计数
+        var countEl = $('#selected-count', panel);
+        if (countEl) {
+            countEl.textContent = '已选 ' + selectedTags.size + ' 个';
+        }
+    }
+
     // ====== 构建面板 ======
     function buildPanel() {
         if (document.getElementById('tag-selector-panel')) return;
@@ -97,7 +173,14 @@ window.__MODULES__.ui = (function() {
                 '}' +
                 '.action-btn:hover { background:#333366; color:#fff; }' +
                 '.action-btn.primary { border-color:#4fc3f7; color:#4fc3f7; }' +
-                '.action-btn.danger { border-color:#e57373; color:#e57373; }';
+                '.action-btn.danger { border-color:#e57373; color:#e57373; }' +
+                '.nav-btn {' +
+                'padding:2px 14px;border-radius:4px;border:1px solid #444;' +
+                'background:transparent;color:#aaa;cursor:pointer;font-size:13px;' +
+                'font-weight:bold;transition:all 0.15s ease;font-family:inherit;' +
+                '}' +
+                '.nav-btn:hover { background:#2a2a4a; border-color:#666; }' +
+                '.nav-btn.active { background:#4fc3f7 !important; color:#1a1a2e !important; border-color:#4fc3f7 !important; }';
             document.head.append(style);
         }
 
@@ -109,19 +192,54 @@ window.__MODULES__.ui = (function() {
             'position:fixed;z-index:999999;background:#1a1a2e;' +
             'color:#eee;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);' +
             'font-family:"Segoe UI",Arial,sans-serif;font-size:13px;' +
-            'border:1px solid #333;user-select:none;width:320px;' +
+            'border:1px solid #333;user-select:none;width:340px;' +
             'box-sizing:border-box;padding:12px 14px;' +
             'top:' + pos.top + 'px;right:' + pos.right + 'px;' +
             'transition:width 0.3s,height 0.3s,border-radius 0.3s,padding 0.3s;' +
             'max-height:90vh;overflow-y:auto;';
 
-        // ---- 标题栏 ----
+        // ---- 标题栏（含导航） ----
         var titleBar = document.createElement('div');
         titleBar.className = 'title-bar';
         titleBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-shrink:0;';
-        titleBar.innerHTML = 
-            '<span class="title-text" style="font-weight:bold;font-size:16px;color:#4fc3f7;">🏷️ 标签选择器</span>' +
-            '<span class="toggle-btn" style="cursor:pointer;font-size:20px;color:#aaa;padding:0 6px;" title="最小化">−</span>';
+        
+        var titleLeft = document.createElement('span');
+        titleLeft.style.cssText = 'display:flex;align-items:center;gap:8px;';
+        titleLeft.innerHTML = 
+            '<span class="title-text" style="font-weight:bold;font-size:16px;color:#4fc3f7;">🏷️ 标注助手</span>' +
+            '<span id="mode-title" style="font-size:12px;color:#aaa;background:#2a2a4a;padding:2px 8px;border-radius:3px;">CPV 模式</span>';
+        
+        var navGroup = document.createElement('span');
+        navGroup.style.cssText = 'display:flex;gap:4px;';
+        
+        // CPV 导航按钮
+        var cpvNavBtn = document.createElement('button');
+        cpvNavBtn.className = 'nav-btn active';
+        cpvNavBtn.dataset.mode = 'cpv';
+        cpvNavBtn.textContent = 'CPV';
+        cpvNavBtn.style.background = '#4fc3f7';
+        cpvNavBtn.style.color = '#1a1a2e';
+        cpvNavBtn.addEventListener('click', function() { switchMode('cpv'); });
+        navGroup.append(cpvNavBtn);
+        
+        // SKU 导航按钮
+        var skuNavBtn = document.createElement('button');
+        skuNavBtn.className = 'nav-btn';
+        skuNavBtn.dataset.mode = 'sku';
+        skuNavBtn.textContent = 'SKU';
+        skuNavBtn.addEventListener('click', function() { switchMode('sku'); });
+        navGroup.append(skuNavBtn);
+        
+        // 最小化按钮
+        var toggleBtn = document.createElement('span');
+        toggleBtn.className = 'toggle-btn';
+        toggleBtn.style.cssText = 'cursor:pointer;font-size:20px;color:#aaa;padding:0 6px;';
+        toggleBtn.textContent = '−';
+        toggleBtn.title = '最小化';
+        
+        titleBar.append(titleLeft);
+        titleBar.append(navGroup);
+        titleBar.append(toggleBtn);
         panel.append(titleBar);
 
         // ---- 信息栏 ----
@@ -140,7 +258,7 @@ window.__MODULES__.ui = (function() {
         selectAllBtn.className = 'action-btn primary';
         selectAllBtn.textContent = '📌 全部';
         selectAllBtn.addEventListener('click', function() {
-            var tags = CONFIG.tags;
+            var tags = getCurrentTags();
             var allSelected = tags.every(function(t) { return tagOps.getSelectedTags().has(t); });
             if (allSelected) {
                 tags.forEach(function(t) { tagOps.getSelectedTags().delete(t); });
@@ -170,20 +288,12 @@ window.__MODULES__.ui = (function() {
 
         // ---- 标签按钮容器 ----
         var tagContainer = document.createElement('div');
+        tagContainer.id = 'tag-btn-container';
         tagContainer.style.cssText = 
             'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;' +
-            'max-height:160px;overflow-y:auto;padding:4px 2px;' +
+            'max-height:200px;overflow-y:auto;padding:4px 2px;' +
             'scrollbar-width:thin;scrollbar-color:#555 #1a1a2e;' +
             'flex-shrink:0;align-content:flex-start;';
-
-        CONFIG.tags.forEach(function(tag) {
-            var btn = document.createElement('button');
-            btn.className = 'tag-select-btn';
-            btn.dataset.tag = tag;
-            btn.textContent = tag;
-            btn.addEventListener('click', function() { toggleTag(tag); });
-            tagContainer.append(btn);
-        });
         panel.append(tagContainer);
 
         // ---- 分割线 ----
@@ -191,9 +301,7 @@ window.__MODULES__.ui = (function() {
         divider.style.cssText = 'border-top:1px solid #333;margin:6px 0;flex-shrink:0;';
         panel.append(divider);
 
-        // ============================================================
-        // ---- 执行按钮组（原有功能） ----
-        // ============================================================
+        // ---- 执行按钮组 ----
         var actionGroup = document.createElement('div');
         actionGroup.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;flex-shrink:0;';
 
@@ -215,7 +323,6 @@ window.__MODULES__.ui = (function() {
             return btn;
         }
 
-        // 原有的执行选中 + 清除选中按钮
         actionGroup.append(
             createBtn('✅ 执行选中', '#4fc3f7', '#0288d1', function() {
                 var tags = Array.from(tagOps.getSelectedTags());
@@ -230,42 +337,7 @@ window.__MODULES__.ui = (function() {
         );
         panel.append(actionGroup);
 
-        // ============================================================
-        // ---- 模式专用按钮组（CPV / SKU） ----
-        // ============================================================
-        var modeGroup = document.createElement('div');
-        modeGroup.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;flex-shrink:0;';
-
-        // 引入 CPV 和 SKU 模块
-        var cpvMode = window.__MODULES__.cpvMode;
-        var skuMode = window.__MODULES__.skuMode;
-
-        if (cpvMode && typeof cpvMode.createButton === 'function') {
-            var cpvBtn = cpvMode.createButton();
-            modeGroup.append(cpvBtn);
-        } else {
-            // 如果 CPV 模块未加载，显示一个占位提示（但不会阻塞其他功能）
-            var cpvPlaceholder = document.createElement('span');
-            cpvPlaceholder.textContent = 'CPV模块未加载';
-            cpvPlaceholder.style.cssText = 'font-size:10px;color:#666;padding:4px 6px;';
-            modeGroup.append(cpvPlaceholder);
-        }
-
-        if (skuMode && typeof skuMode.createButton === 'function') {
-            var skuBtn = skuMode.createButton();
-            modeGroup.append(skuBtn);
-        } else {
-            var skuPlaceholder = document.createElement('span');
-            skuPlaceholder.textContent = 'SKU模块未加载';
-            skuPlaceholder.style.cssText = 'font-size:10px;color:#666;padding:4px 6px;';
-            modeGroup.append(skuPlaceholder);
-        }
-
-        panel.append(modeGroup);
-
-        // ============================================================
-        // ---- 下拉框操作（原有功能） ----
-        // ============================================================
+        // ---- 下拉框操作 ----
         var dropdownGroup = document.createElement('div');
         dropdownGroup.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;flex-shrink:0;';
         dropdownGroup.append(
@@ -279,15 +351,14 @@ window.__MODULES__.ui = (function() {
         var status = document.createElement('div');
         status.id = 'tag-status-bar';
         status.style.cssText = 'padding-top:6px;border-top:1px solid #333;font-size:11px;color:#888;text-align:center;flex-shrink:0;';
-        status.textContent = '就绪 | ' + CONFIG.tags.length + ' 种标签 | CPV/SKU 模式已加载';
+        status.textContent = '就绪 | CPV 模式 | ' + getCurrentTags().length + ' 种标签';
         panel.append(status);
 
         document.body.append(panel);
+        
+        // 初始化：渲染 CPV 的标签
+        renderTags();
         initDraggable(panel);
-        updateTagButtons();
-
-        // 在控制台输出模块加载状态
-        console.log('✅ UI 面板加载完成，CPV:', !!cpvMode, 'SKU:', !!skuMode);
     }
 
     // ====== 拖动和最小化 ======
