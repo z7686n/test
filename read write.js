@@ -6,6 +6,8 @@
 // @author       Z
 // @match        *://*/*
 // @grant        GM_setClipboard
+// @downloadURL  https://raw.githubusercontent.com/z7686n/test/main/zdh.user.js
+// @updateURL    https://raw.githubusercontent.com/z7686n/test/main/zdh.user.js
 // ==/UserScript==
 
 (function() {
