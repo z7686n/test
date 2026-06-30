@@ -19,8 +19,10 @@ window.__MODULES__.utils = {
     },
     
     // Toast 提示
-    showToast: function(msg, isError) {
+    showToast: function(msg, isError, duration) {
         isError = isError || false;
+        duration = duration || 3000;
+        
         var old = document.getElementById('tag-toast');
         if (old) old.remove();
 
@@ -41,15 +43,54 @@ window.__MODULES__.utils = {
             var style = document.createElement('style');
             style.id = 'tag-toast-style';
             style.textContent = 
-                '@keyframes tag-toast-in{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+                '@keyframes tag-toast-in{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}' +
+                '.tag-toast-out{opacity:0;transition:opacity 0.5s;}';
             document.head.append(style);
         }
 
         document.body.append(toast);
+        
         setTimeout(function() {
-            toast.style.opacity = '0';
-            toast.style.transition = 'opacity 0.5s';
+            toast.classList.add('tag-toast-out');
             setTimeout(function() { toast.remove(); }, 500);
-        }, 3000);
+        }, duration);
+    },
+    
+    // 防抖函数
+    debounce: function(func, wait) {
+        var timeout;
+        return function executedFunction() {
+            var context = this;
+            var args = arguments;
+            var later = function() {
+                timeout = null;
+                func.apply(context, args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+    
+    // 节流函数
+    throttle: function(func, limit) {
+        var inThrottle;
+        return function() {
+            var args = arguments;
+            var context = this;
+            if (!inThrottle) {
+                func.apply(context, args);
+                inThrottle = true;
+                setTimeout(function() { inThrottle = false; }, limit);
+            }
+        };
+    },
+    
+    // 安全解析JSON
+    safeJSONParse: function(str, defaultValue) {
+        try {
+            return JSON.parse(str);
+        } catch (e) {
+            return defaultValue || null;
+        }
     }
 };
