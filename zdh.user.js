@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         标注助手
 // @namespace    http://tampermonkey.net/
-// @version      2.1.0
+// @version      2.0.0
 // @description  标注助手 - CPV/SKU 双模式切换
 // @author       Z
 // @match        *://*/*
