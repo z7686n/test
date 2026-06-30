@@ -1,13 +1,16 @@
 // 配置模块 - 所有可调整参数集中管理
 window.__MODULES__ = window.__MODULES__ || {};
 window.__MODULES__.CONFIG = {
+    // 基础配置
     clickDelay: 50,
     debug: false,
     storageKey: 'tag-panel-pos',
+    selectionStorageKey: 'tag-selections',
     defaultPosition: { top: 100, right: 20 },
     dropdownTimeout: 500,
+    operationTimeout: 30000, // 操作超时时间
     
-    // 标签配置：不再使用扁平数组，而是按模式分组
+    // 标签配置：按模式分组
     modes: {
         cpv: {
             label: 'CPV',
@@ -37,5 +40,8 @@ window.__MODULES__.CONFIG = {
                 '其他原因'
             ]
         }
-    }
+    },
+    
+    // 下拉框匹配文本
+    dropdownTargetText: '无法判断'
 };
