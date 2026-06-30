@@ -1,22 +1,23 @@
-// UI 面板模块 - 主页面导航 + CPV/SKU 子页面
+// UI 面板模块 - 分组布局 + 模板管理
 window.__MODULES__ = window.__MODULES__ || {};
 window.__MODULES__.ui = (function() {
     var panel = null;
     var isMinimized = false;
-    var currentMode = 'cpv';
     var tagOps = window.__MODULES__.tagOps;
     var treeSelectOps = window.__MODULES__.treeSelectOps;
+    var templateManager = window.__MODULES__.templateManager;
     var CONFIG = window.__MODULES__.CONFIG;
     var utils = window.__MODULES__.utils;
-    var $ = utils.$, $$ = utils.$$, sleep = utils.sleep, showToast = utils.showToast;
+    var $ = utils.$, $$ = utils.$$, showToast = utils.showToast;
+    
+    // 分组折叠状态
+    var groupCollapsed = {};
 
     // ====== 位置存储 ======
     function savePosition(top, right) {
         try { 
             localStorage.setItem(CONFIG.storageKey, JSON.stringify({ top: top, right: right })); 
-        } catch (e) {
-            if (CONFIG.debug) console.warn('保存位置失败:', e);
-        }
+        } catch (e) {}
     }
 
     function loadPosition() {
@@ -25,113 +26,98 @@ window.__MODULES__.ui = (function() {
             if (saved && typeof saved.top === 'number' && typeof saved.right === 'number') {
                 return { top: saved.top, right: saved.right };
             }
-        } catch (e) {
-            if (CONFIG.debug) console.warn('加载位置失败:', e);
-        }
+        } catch (e) {}
         return { top: CONFIG.defaultPosition.top, right: CONFIG.defaultPosition.right };
     }
 
-    // ====== 获取当前模式的标签列表 ======
-    function getCurrentTags() {
-        return CONFIG.modes[currentMode].tags || [];
+    // ====== 获取分组标签 ======
+    function getGroupTags(groupId) {
+        var template = templateManager.getCurrentTemplate();
+        if (template) {
+            var group = template.groups.find(function(g) { return g.groupId === groupId; });
+            if (group) return group.tags;
+        }
+        // 回退到默认配置
+        var configGroup = CONFIG.groups.find(function(g) { return g.id === groupId; });
+        return configGroup ? configGroup.defaultTags : [];
     }
 
     // ====== 更新标签按钮状态 ======
     function updateTagButtons() {
-        var btns = $$('.tag-select-btn', panel);
-        var selectedTags = tagOps.getSelectedTags();
-        
-        btns.forEach(function(btn) {
-            var tag = btn.dataset.tag;
-            if (selectedTags.has(tag)) {
-                btn.classList.add('active');
-                btn.style.background = '#4fc3f7';
-                btn.style.color = '#1a1a2e';
-                btn.style.borderColor = '#4fc3f7';
-            } else {
-                btn.classList.remove('active');
-                btn.style.background = 'transparent';
-                btn.style.color = '#ccc';
-                btn.style.borderColor = '#444';
+        var groups = CONFIG.groups;
+        groups.forEach(function(group) {
+            var container = $('#group-' + group.id + '-tags', panel);
+            if (!container) return;
+            
+            var btns = $$('.tag-select-btn', container);
+            var selectedTags = tagOps.getGroupSelections(group.id);
+            
+            btns.forEach(function(btn) {
+                var tag = btn.dataset.tag;
+                if (selectedTags.has(tag)) {
+                    btn.classList.add('active');
+                    btn.style.background = '#4fc3f7';
+                    btn.style.color = '#1a1a2e';
+                    btn.style.borderColor = '#4fc3f7';
+                } else {
+                    btn.classList.remove('active');
+                    btn.style.background = 'transparent';
+                    btn.style.color = '#ccc';
+                    btn.style.borderColor = '#444';
+                }
+            });
+            
+            var countEl = $('#group-' + group.id + '-count', panel);
+            if (countEl) {
+                countEl.textContent = selectedTags.size + '/' + getGroupTags(group.id).length;
             }
         });
-
-        var countEl = $('#selected-count', panel);
-        if (countEl) {
-            var count = tagOps.getSelectedCount();
-            countEl.textContent = '已选 ' + count + ' 个';
-        }
     }
 
     // ====== 切换标签选择 ======
-    function toggleTag(tag) {
-        tagOps.toggleTag(tag);
+    function toggleTag(groupId, tag) {
+        tagOps.toggleTag(groupId, tag);
         updateTagButtons();
+        updateStatus();
     }
 
     // ====== 更新状态栏 ======
-    function updateStatus(msg, isError) {
+    function updateStatus(msg) {
         var bar = $('#tag-status-bar', panel);
         if (bar) {
-            bar.textContent = msg || '就绪';
-            bar.style.color = isError ? '#ff6b6b' : '#4fc3f7';
-            setTimeout(function() { 
-                if (bar) {
-                    var count = tagOps.getSelectedCount();
-                    var tags = getCurrentTags();
-                    bar.textContent = '就绪 | ' + currentMode.toUpperCase() + ' 模式 | ' + tags.length + ' 种标签';
-                    bar.style.color = '#888';
-                }
-            }, 3000);
-        }
-    }
-
-    // ====== 切换模式 ======
-    function switchMode(mode) {
-        if (mode === currentMode) return;
-        currentMode = mode;
-        tagOps.setMode(mode);
-        
-        // 更新导航按钮
-        var navBtns = $$('.nav-btn', panel);
-        navBtns.forEach(function(btn) {
-            var btnMode = btn.dataset.mode;
-            if (btnMode === mode) {
-                btn.classList.add('active');
-                btn.style.background = '#4fc3f7';
-                btn.style.color = '#1a1a2e';
-            } else {
-                btn.classList.remove('active');
-                btn.style.background = 'transparent';
-                btn.style.color = '#aaa';
+            var total = tagOps.getSelectedCount();
+            var groups = CONFIG.groups;
+            var statusParts = [];
+            groups.forEach(function(g) {
+                var count = tagOps.getSelectedCount(g.id);
+                statusParts.push(g.label + ': ' + count);
+            });
+            bar.textContent = msg || '就绪 | ' + statusParts.join(' | ') + ' | 总计: ' + total;
+            if (msg) {
+                bar.style.color = '#4fc3f7';
+                setTimeout(function() { 
+                    if (bar) bar.style.color = '#888'; 
+                }, 3000);
             }
-        });
-
-        var modeTitle = panel.querySelector('.mode-title');
-        if (modeTitle) {
-            modeTitle.textContent = mode.toUpperCase();
         }
-
-        renderTags();
-        updateStatus('已切换到 ' + mode.toUpperCase() + ' 模式');
-        showToast('🔄 切换到 ' + mode.toUpperCase() + ' 模式');
     }
 
-    // ====== 渲染标签按钮 ======
-    function renderTags() {
-        var container = $('#tag-btn-container', panel);
+    // ====== 渲染分组标签 ======
+    function renderGroup(group) {
+        var container = $('#group-' + group.id + '-tags', panel);
         if (!container) return;
         
         container.innerHTML = '';
-        var tags = getCurrentTags();
-        var selectedTags = tagOps.getSelectedTags();
+        var tags = getGroupTags(group.id);
+        var selectedTags = tagOps.getGroupSelections(group.id);
         
-        if (!tags.length) {
-            container.innerHTML = '<span style="color:#888;font-size:12px;">暂无标签配置</span>';
+        if (!tags || !tags.length) {
+            container.innerHTML = '<span style="color:#666;font-size:12px;">暂无标签，请保存模板</span>';
             return;
         }
         
         tags.forEach(function(tag) {
+            if (!tag) return;
             var btn = document.createElement('button');
             btn.className = 'tag-select-btn';
             btn.dataset.tag = tag;
@@ -146,25 +132,106 @@ window.__MODULES__.ui = (function() {
                 btn.style.color = '#ccc';
                 btn.style.borderColor = '#444';
             }
-            btn.addEventListener('click', function() { toggleTag(tag); });
+            btn.addEventListener('click', function() { 
+                toggleTag(group.id, tag); 
+            });
             container.append(btn);
         });
         
-        var countEl = $('#selected-count', panel);
+        var countEl = $('#group-' + group.id + '-count', panel);
         if (countEl) {
-            countEl.textContent = '已选 ' + selectedTags.size + ' 个';
+            countEl.textContent = selectedTags.size + '/' + tags.length;
         }
+    }
+
+    // ====== 切换分组折叠 ======
+    function toggleGroup(groupId) {
+        var content = $('#group-' + groupId + '-content', panel);
+        var btn = $('#group-' + groupId + '-toggle', panel);
+        if (content) {
+            var isCollapsed = groupCollapsed[groupId];
+            if (isCollapsed) {
+                content.style.display = 'block';
+                if (btn) btn.textContent = '▼';
+                groupCollapsed[groupId] = false;
+            } else {
+                content.style.display = 'none';
+                if (btn) btn.textContent = '▶';
+                groupCollapsed[groupId] = true;
+            }
+        }
+    }
+
+    // ====== 渲染所有分组 ======
+    function renderGroups() {
+        var container = $('#groups-container', panel);
+        if (!container) return;
+        
+        container.innerHTML = '';
+        var groups = CONFIG.groups;
+        var template = templateManager.getCurrentTemplate();
+        
+        groups.forEach(function(group) {
+            var groupDiv = document.createElement('div');
+            groupDiv.className = 'group-container';
+            groupDiv.style.cssText = 'margin-bottom:10px;border:1px solid #333;border-radius:6px;padding:6px 8px;';
+            
+            // 分组标题栏
+            var header = document.createElement('div');
+            header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;cursor:pointer;';
+            header.addEventListener('click', function() { toggleGroup(group.id); });
+            
+            var titleLeft = document.createElement('span');
+            titleLeft.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            titleLeft.innerHTML = 
+                '<span style="font-size:14px;">' + group.icon + '</span>' +
+                '<span style="font-size:13px;font-weight:bold;color:#ddd;">' + group.label + '</span>' +
+                '<span style="font-size:11px;color:#666;">(' + (group.type === 'radio' ? '单选' : '多选') + ')</span>';
+            
+            var titleRight = document.createElement('span');
+            titleRight.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            titleRight.innerHTML = 
+                '<span id="group-' + group.id + '-count" style="font-size:11px;color:#4fc3f7;">0/' + getGroupTags(group.id).length + '</span>' +
+                '<span id="group-' + group.id + '-toggle" style="font-size:12px;color:#888;">▼</span>';
+            
+            header.append(titleLeft);
+            header.append(titleRight);
+            groupDiv.append(header);
+            
+            // 标签内容
+            var content = document.createElement('div');
+            content.id = 'group-' + group.id + '-content';
+            content.style.cssText = 'margin-top:6px;';
+            
+            var tagsContainer = document.createElement('div');
+            tagsContainer.id = 'group-' + group.id + '-tags';
+            tagsContainer.style.cssText = 
+                'display:flex;flex-wrap:wrap;gap:4px;padding:2px 0;' +
+                'max-height:150px;overflow-y:auto;';
+            content.append(tagsContainer);
+            
+            groupDiv.append(content);
+            container.append(groupDiv);
+            
+            // 初始展开状态
+            groupCollapsed[group.id] = false;
+        });
+        
+        // 渲染每个分组的标签
+        groups.forEach(function(group) {
+            renderGroup(group);
+        });
     }
 
     // ====== 构建面板 ======
     function buildPanel() {
         if (document.getElementById('tag-selector-panel')) {
-            // 如果面板已存在，更新而非重建
             var existingPanel = document.getElementById('tag-selector-panel');
             if (existingPanel) {
                 panel = existingPanel;
-                renderTags();
+                renderGroups();
                 updateTagButtons();
+                updateStatus();
                 return;
             }
         }
@@ -178,7 +245,7 @@ window.__MODULES__.ui = (function() {
                 'position:fixed;z-index:999999;background:#1a1a2e;' +
                 'color:#eee;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);' +
                 'font-family:"Segoe UI",Arial,sans-serif;font-size:13px;' +
-                'border:1px solid #333;user-select:none;width:340px;' +
+                'border:1px solid #333;user-select:none;width:380px;' +
                 'box-sizing:border-box;padding:12px 14px;' +
                 'transition:width 0.3s,height 0.3s,border-radius 0.3s,padding 0.3s;' +
                 'max-height:90vh;overflow-y:auto;' +
@@ -235,7 +302,7 @@ window.__MODULES__.ui = (function() {
             'position:fixed;z-index:999999;background:#1a1a2e;' +
             'color:#eee;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);' +
             'font-family:"Segoe UI",Arial,sans-serif;font-size:13px;' +
-            'border:1px solid #333;user-select:none;width:340px;' +
+            'border:1px solid #333;user-select:none;width:380px;' +
             'box-sizing:border-box;padding:12px 14px;' +
             'top:' + pos.top + 'px;right:' + pos.right + 'px;' +
             'transition:width 0.3s,height 0.3s,border-radius 0.3s,padding 0.3s;' +
@@ -249,28 +316,58 @@ window.__MODULES__.ui = (function() {
         var titleLeft = document.createElement('span');
         titleLeft.style.cssText = 'display:flex;align-items:center;gap:8px;';
         titleLeft.innerHTML = 
-            '<span class="title-text" style="font-weight:bold;font-size:16px;color:#4fc3f7;">🏷️ 标注助手</span>' +
-            '<span class="mode-title" style="font-size:12px;color:#aaa;background:#2a2a4a;padding:2px 8px;border-radius:3px;">CPV</span>';
+            '<span class="title-text" style="font-weight:bold;font-size:16px;color:#4fc3f7;">🏷️ 标注助手</span>';
 
-        var navGroup = document.createElement('span');
-        navGroup.style.cssText = 'display:flex;gap:4px;';
-
-        var cpvNavBtn = document.createElement('button');
-        cpvNavBtn.className = 'nav-btn active';
-        cpvNavBtn.dataset.mode = 'cpv';
-        cpvNavBtn.textContent = 'CPV';
-        cpvNavBtn.style.background = '#4fc3f7';
-        cpvNavBtn.style.color = '#1a1a2e';
-        cpvNavBtn.addEventListener('click', function() { switchMode('cpv'); });
-        navGroup.append(cpvNavBtn);
-
-        var skuNavBtn = document.createElement('button');
-        skuNavBtn.className = 'nav-btn';
-        skuNavBtn.dataset.mode = 'sku';
-        skuNavBtn.textContent = 'SKU';
-        skuNavBtn.addEventListener('click', function() { switchMode('sku'); });
-        navGroup.append(skuNavBtn);
-
+        // 模板选择器
+        var templateSelector = document.createElement('select');
+        templateSelector.id = 'template-selector';
+        templateSelector.style.cssText = 
+            'background:#2a2a4a;color:#ddd;border:1px solid #444;border-radius:4px;' +
+            'padding:2px 6px;font-size:11px;font-family:inherit;cursor:pointer;max-width:120px;';
+        templateSelector.addEventListener('change', function() {
+            var val = this.value;
+            if (val === '__create__') {
+                createNewTemplate();
+            } else if (val === '__auto__') {
+                templateManager.autoDetectTemplate();
+                refreshUI();
+            } else {
+                templateManager.switchTemplate(val);
+                refreshUI();
+            }
+        });
+        
+        function updateTemplateSelector() {
+            var currentId = templateManager.getCurrentId();
+            var list = templateManager.getTemplateList();
+            templateSelector.innerHTML = '';
+            
+            var defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = '选择模板...';
+            templateSelector.append(defaultOption);
+            
+            var autoOption = document.createElement('option');
+            autoOption.value = '__auto__';
+            autoOption.textContent = '🔍 自动检测';
+            templateSelector.append(autoOption);
+            
+            list.forEach(function(t) {
+                var opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.name;
+                if (t.id === currentId) opt.selected = true;
+                templateSelector.append(opt);
+            });
+            
+            var createOption = document.createElement('option');
+            createOption.value = '__create__';
+            createOption.textContent = '➕ 新建模板';
+            templateSelector.append(createOption);
+        }
+        
+        titleLeft.append(templateSelector);
+        
         var toggleBtn = document.createElement('span');
         toggleBtn.className = 'toggle-btn';
         toggleBtn.style.cssText = 'cursor:pointer;font-size:20px;color:#aaa;padding:0 6px;';
@@ -278,65 +375,54 @@ window.__MODULES__.ui = (function() {
         toggleBtn.title = '最小化';
 
         titleBar.append(titleLeft);
-        titleBar.append(navGroup);
         titleBar.append(toggleBtn);
         panel.append(titleBar);
 
-        // ---- 信息栏 ----
-        var infoBar = document.createElement('div');
-        infoBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-shrink:0;';
-        infoBar.innerHTML = 
-            '<span style="font-size:11px;color:#888;">💡 点击标签选择，再执行</span>' +
-            '<span id="selected-count" style="font-size:12px;color:#4fc3f7;font-weight:bold;">已选 0 个</span>';
-        panel.append(infoBar);
-
-        // ---- 快捷操作栏 ----
-        var actionBar = document.createElement('div');
-        actionBar.style.cssText = 'display:flex;gap:6px;margin-bottom:8px;flex-shrink:0;';
-
-        var selectAllBtn = document.createElement('button');
-        selectAllBtn.className = 'action-btn primary';
-        selectAllBtn.textContent = '📌 全部';
-        selectAllBtn.addEventListener('click', function() {
-            var tags = getCurrentTags();
-            var selectedTags = tagOps.getSelectedTags();
-            var allSelected = tags.every(function(t) { return selectedTags.has(t); });
-            
-            if (allSelected) {
-                tagOps.clearAll();
-                showToast('已取消全选');
-            } else {
-                tagOps.selectAll(tags);
-                showToast('已全选 ' + tags.length + ' 个标签');
+        // ---- 模板操作栏 ----
+        var templateBar = document.createElement('div');
+        templateBar.style.cssText = 'display:flex;gap:4px;margin-bottom:8px;flex-shrink:0;flex-wrap:wrap;';
+        
+        var saveTemplateBtn = document.createElement('button');
+        saveTemplateBtn.className = 'action-btn success';
+        saveTemplateBtn.textContent = '💾 保存模板';
+        saveTemplateBtn.addEventListener('click', function() {
+            var name = prompt('请输入模板名称:', '模板-' + new Date().toLocaleDateString());
+            if (name) {
+                templateManager.createTemplate(name);
+                updateTemplateSelector();
+                refreshUI();
             }
-            updateTagButtons();
         });
-        actionBar.append(selectAllBtn);
-
-        var clearBtn = document.createElement('button');
-        clearBtn.className = 'action-btn danger';
-        clearBtn.textContent = '🗑️ 清空';
-        clearBtn.addEventListener('click', function() {
-            tagOps.clearAll();
-            updateTagButtons();
-            showToast('已清空选择');
+        templateBar.append(saveTemplateBtn);
+        
+        var deleteTemplateBtn = document.createElement('button');
+        deleteTemplateBtn.className = 'action-btn danger';
+        deleteTemplateBtn.textContent = '🗑️ 删除';
+        deleteTemplateBtn.addEventListener('click', function() {
+            var currentId = templateManager.getCurrentId();
+            if (currentId && confirm('确定要删除当前模板吗？')) {
+                templateManager.deleteTemplate(currentId);
+                updateTemplateSelector();
+                refreshUI();
+            }
         });
-        actionBar.append(clearBtn);
+        templateBar.append(deleteTemplateBtn);
+        
+        var refreshBtn = document.createElement('button');
+        refreshBtn.className = 'action-btn';
+        refreshBtn.textContent = '🔄 刷新';
+        refreshBtn.addEventListener('click', function() {
+            refreshUI();
+        });
+        templateBar.append(refreshBtn);
+        
+        panel.append(templateBar);
 
-        var spacer = document.createElement('span');
-        spacer.style.cssText = 'flex:1;';
-        actionBar.append(spacer);
-        panel.append(actionBar);
-
-        // ---- 标签按钮容器 ----
-        var tagContainer = document.createElement('div');
-        tagContainer.id = 'tag-btn-container';
-        tagContainer.style.cssText = 
-            'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;' +
-            'max-height:200px;overflow-y:auto;padding:4px 2px;' +
-            'scrollbar-width:thin;scrollbar-color:#555 #1a1a2e;' +
-            'flex-shrink:0;align-content:flex-start;';
-        panel.append(tagContainer);
+        // ---- 分组容器 ----
+        var groupsContainer = document.createElement('div');
+        groupsContainer.id = 'groups-container';
+        groupsContainer.style.cssText = 'margin-bottom:8px;flex-shrink:0;';
+        panel.append(groupsContainer);
 
         // ---- 分割线 ----
         var divider = document.createElement('div');
@@ -367,7 +453,7 @@ window.__MODULES__.ui = (function() {
 
         actionGroup.append(
             createBtn('✅ 执行选中', '#4fc3f7', '#0288d1', function() {
-                var tags = Array.from(tagOps.getSelectedTags());
+                var tags = tagOps.getAllSelectedTags();
                 if (tags.length === 0) {
                     showToast('⚠️ 请先选择要执行的标签', true);
                     return;
@@ -383,6 +469,7 @@ window.__MODULES__.ui = (function() {
             createBtn('🔄 清除选中', '#ff8a65', '#d84315', function() {
                 tagOps.clearAllSelections();
                 updateTagButtons();
+                updateStatus('已清除所有选中');
             }, '1')
         );
         panel.append(actionGroup);
@@ -401,15 +488,51 @@ window.__MODULES__.ui = (function() {
         var status = document.createElement('div');
         status.id = 'tag-status-bar';
         status.style.cssText = 'padding-top:6px;border-top:1px solid #333;font-size:11px;color:#888;text-align:center;flex-shrink:0;';
-        var tags = getCurrentTags();
-        status.textContent = '就绪 | ' + currentMode.toUpperCase() + ' 模式 | ' + tags.length + ' 种标签';
+        status.textContent = '就绪';
         panel.append(status);
 
         document.body.append(panel);
         
-        renderTags();
+        // 渲染所有内容
+        renderGroups();
+        updateTemplateSelector();
         updateTagButtons();
+        updateStatus();
         initDraggable(panel);
+    }
+
+    // ====== 刷新UI ======
+    function refreshUI() {
+        renderGroups();
+        updateTemplateSelector();
+        updateTagButtons();
+        updateStatus('已刷新');
+        showToast('🔄 面板已刷新');
+    }
+
+    // ====== 创建新模板 ======
+    function createNewTemplate() {
+        var name = prompt('请输入模板名称:', '模板-' + new Date().toLocaleDateString());
+        if (name) {
+            var desc = prompt('请输入模板描述（可选）:', '');
+            var template = templateManager.createTemplate(name, desc || '');
+            if (template) {
+                updateTemplateSelector();
+                refreshUI();
+            }
+        }
+        // 恢复选择器状态
+        var selector = $('#template-selector', panel);
+        if (selector) {
+            var currentId = templateManager.getCurrentId();
+            var options = selector.options;
+            for (var i = 0; i < options.length; i++) {
+                if (options[i].value === currentId) {
+                    options[i].selected = true;
+                    break;
+                }
+            }
+        }
     }
 
     // ====== 拖动和最小化 ======
@@ -423,21 +546,25 @@ window.__MODULES__.ui = (function() {
             isMinimizedLocal = true;
             isMinimized = true;
             el.classList.add('minimized');
-            toggleBtn.textContent = '➕';
-            toggleBtn.title = '展开面板';
+            if (toggleBtn) {
+                toggleBtn.textContent = '➕';
+                toggleBtn.title = '展开面板';
+            }
         }
 
         function expand() {
             isMinimizedLocal = false;
             isMinimized = false;
             el.classList.remove('minimized');
-            toggleBtn.textContent = '−';
-            toggleBtn.title = '最小化';
+            if (toggleBtn) {
+                toggleBtn.textContent = '−';
+                toggleBtn.title = '最小化';
+            }
         }
 
         el.addEventListener('pointerdown', function(e) {
-            // 如果点击的是按钮，不启动拖动
-            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+            if (e.target.tagName === 'BUTTON' || e.target.closest('button') || 
+                e.target.tagName === 'SELECT' || e.target.closest('select')) return;
             
             e.preventDefault();
             startX = e.clientX;
@@ -471,7 +598,6 @@ window.__MODULES__.ui = (function() {
                 el.style.transition = '';
 
                 if (!moved) {
-                    // 点击事件 - 切换最小化
                     if (e.target === toggleBtn) {
                         isMinimizedLocal ? expand() : minimize();
                     } else if (isMinimizedLocal && el.contains(e.target)) {
@@ -487,7 +613,6 @@ window.__MODULES__.ui = (function() {
             document.addEventListener('pointerup', onUp);
         });
 
-        // 点击面板主体展开（仅当最小化时）
         el.addEventListener('click', function(e) {
             if (isMinimizedLocal && e.target === el) {
                 expand();
@@ -514,28 +639,33 @@ window.__MODULES__.ui = (function() {
                 document.addEventListener('DOMContentLoaded', function() {
                     buildPanel();
                     watchPanel();
+                    // 尝试自动检测模板
+                    setTimeout(function() {
+                        if (!templateManager.getCurrentTemplate()) {
+                            templateManager.autoDetectTemplate();
+                            refreshUI();
+                        }
+                    }, 1000);
                 });
             } else {
                 buildPanel();
                 watchPanel();
+                setTimeout(function() {
+                    if (!templateManager.getCurrentTemplate()) {
+                        templateManager.autoDetectTemplate();
+                        refreshUI();
+                    }
+                }, 1000);
             }
         },
         
-        // 手动刷新面板
-        refreshPanel: function() {
-            if (panel) {
-                renderTags();
-                updateTagButtons();
-                showToast('🔄 面板已刷新');
-            }
-        },
+        refreshUI: refreshUI,
         
-        // 获取面板状态
         getPanelState: function() {
             return {
                 isMinimized: isMinimized,
-                currentMode: currentMode,
-                selectedCount: tagOps.getSelectedCount()
+                selectedCount: tagOps.getSelectedCount(),
+                templateId: templateManager.getCurrentId()
             };
         }
     };
