@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         标注助手
 // @namespace    http://tampermonkey.net/
-// @version      2.1.0
+// @version      2.1.1
 // @description  标注助手 - 分组布局 + 模板管理
 // @author       Z
 // @match        *://*/*
