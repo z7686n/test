@@ -1,4 +1,3 @@
-// TreeSelect 下拉框操作模块
 window.__MODULES__ = window.__MODULES__ || {};
 window.__MODULES__.treeSelectOps = (function() {
     var CONFIG = window.__MODULES__.CONFIG;
@@ -11,7 +10,7 @@ window.__MODULES__.treeSelectOps = (function() {
     function matchTargetText(text) {
         if (!text) return false;
         var trimmed = text.trim();
-        var target = CONFIG.dropdownTargetText || '无法判断';
+        var target = '无法判断';
         return trimmed === target || trimmed.includes(target);
     }
 
@@ -104,7 +103,6 @@ window.__MODULES__.treeSelectOps = (function() {
 
                     var targetNode = null;
 
-                    // 方法A：树节点
                     var treeNodes = curDropdown.querySelectorAll(
                         '.ant-tree-treenode, .ant-select-tree-treenode, .ant-tree-node'
                     );
@@ -120,7 +118,6 @@ window.__MODULES__.treeSelectOps = (function() {
                         }
                     }
 
-                    // 方法B：普通选项
                     if (!targetNode) {
                         var options = curDropdown.querySelectorAll(
                             '.ant-select-item-option, .ant-select-tree-option, .ant-select-dropdown-menu-item'
@@ -133,22 +130,6 @@ window.__MODULES__.treeSelectOps = (function() {
                             if (matchTargetText(content.textContent)) {
                                 targetNode = opt;
                                 break;
-                            }
-                        }
-                    }
-
-                    // 方法C：直接查找
-                    if (!targetNode) {
-                        var allElements = curDropdown.querySelectorAll('*');
-                        for (var r = 0; r < allElements.length; r++) {
-                            var el = allElements[r];
-                            if (el.children.length === 0 && matchTargetText(el.textContent)) {
-                                var parent = el.parentElement;
-                                if (parent && (parent.classList.contains('ant-tree-treenode') || 
-                                              parent.classList.contains('ant-select-tree-treenode'))) {
-                                    targetNode = el;
-                                    break;
-                                }
                             }
                         }
                     }
