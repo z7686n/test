@@ -1,3 +1,4 @@
+// 标签操作模块 - 支持多模式
 window.__MODULES__ = window.__MODULES__ || {};
 window.__MODULES__.tagOps = (function() {
     var CONFIG = window.__MODULES__.CONFIG;
@@ -5,110 +6,129 @@ window.__MODULES__.tagOps = (function() {
     var showToast = utils.showToast;
     var sleep = utils.sleep;
     
-    var selections = {
-        correctness: new Set(),
-        evidence: new Set(),
-        errorTypes: new Set()
+    // 每个模式独立维护选中状态
+    var modeSelections = {
+        cpv: new Set(),
+        sku: new Set()
     };
-    
+    var currentMode = 'cpv';
     var isProcessing = false;
     var operationTimeout = null;
-    
+
+    // ========== 状态持久化 ==========
     function saveSelections() {
         try {
-            var data = {};
-            for (var key in selections) {
-                data[key] = Array.from(selections[key]);
-            }
+            var data = {
+                cpv: Array.from(modeSelections.cpv),
+                sku: Array.from(modeSelections.sku)
+            };
             localStorage.setItem(CONFIG.selectionStorageKey, JSON.stringify(data));
-        } catch (e) {}
+        } catch (e) {
+            if (CONFIG.debug) console.warn('保存选择状态失败:', e);
+        }
     }
-    
+
     function loadSelections() {
         try {
             var data = utils.safeJSONParse(localStorage.getItem(CONFIG.selectionStorageKey));
             if (data) {
-                for (var key in data) {
-                    if (selections[key]) {
-                        selections[key] = new Set(data[key]);
-                    }
-                }
+                if (data.cpv) modeSelections.cpv = new Set(data.cpv);
+                if (data.sku) modeSelections.sku = new Set(data.sku);
                 return true;
             }
-        } catch (e) {}
+        } catch (e) {
+            if (CONFIG.debug) console.warn('加载选择状态失败:', e);
+        }
         return false;
     }
+
+    // 初始化时加载保存的状态
     loadSelections();
-    
+
+    // ========== 核心方法 ==========
     return {
-        getGroups: function() {
-            return CONFIG.groups;
-        },
-        
-        getGroupSelections: function(groupId) {
-            return selections[groupId] || new Set();
-        },
-        
-        getAllSelectedTags: function() {
-            var allTags = [];
-            for (var key in selections) {
-                selections[key].forEach(function(tag) {
-                    allTags.push(tag);
-                });
+        // 切换当前模式
+        setMode: function(mode) {
+            if (mode === 'cpv' || mode === 'sku') {
+                currentMode = mode;
             }
-            return allTags;
         },
         
-        toggleTag: function(groupId, tag, isRadio) {
-            if (!selections[groupId]) {
-                selections[groupId] = new Set();
+        getCurrentMode: function() {
+            return currentMode;
+        },
+        
+        // 获取当前模式的选中集合
+        getSelectedTags: function() {
+            return modeSelections[currentMode];
+        },
+        
+        // 获取指定模式的选中集合
+        getModeSelections: function(mode) {
+            return modeSelections[mode] || new Set();
+        },
+        
+        // 重置指定模式的选中集合
+        resetModeSelections: function(mode) {
+            if (modeSelections[mode]) {
+                modeSelections[mode].clear();
+                saveSelections();
             }
-            var set = selections[groupId];
-            
-            if (isRadio) {
-                set.clear();
-                set.add(tag);
+        },
+        
+        // 检查标签是否被选中
+        isTagSelected: function(mode, tag) {
+            var set = modeSelections[mode] || new Set();
+            return set.has(tag);
+        },
+        
+        // 切换单个标签（当前模式）
+        toggleTag: function(tag) {
+            var set = modeSelections[currentMode];
+            if (set.has(tag)) {
+                set.delete(tag);
             } else {
-                if (set.has(tag)) {
-                    set.delete(tag);
-                } else {
-                    set.add(tag);
-                }
+                set.add(tag);
             }
             saveSelections();
             return set;
         },
         
-        clearGroup: function(groupId) {
-            if (selections[groupId]) {
-                selections[groupId].clear();
-                saveSelections();
+        // 切换多个标签（当前模式）
+        toggleTags: function(tags) {
+            var set = modeSelections[currentMode];
+            var allSelected = tags.every(function(t) { return set.has(t); });
+            
+            if (allSelected) {
+                tags.forEach(function(t) { set.delete(t); });
+            } else {
+                tags.forEach(function(t) { set.add(t); });
             }
+            saveSelections();
+            return allSelected;
         },
         
-        clearAll: function() {
-            for (var key in selections) {
-                selections[key].clear();
-            }
+        // 全选（当前模式）
+        selectAll: function(tags) {
+            var set = modeSelections[currentMode];
+            tags.forEach(function(t) { set.add(t); });
             saveSelections();
         },
         
-        getSelectedCount: function(groupId) {
-            if (groupId) {
-                return selections[groupId] ? selections[groupId].size : 0;
-            }
-            var total = 0;
-            for (var key in selections) {
-                total += selections[key].size;
-            }
-            return total;
+        // 清空当前模式选择
+        clearAll: function() {
+            modeSelections[currentMode].clear();
+            saveSelections();
         },
         
-        isTagSelected: function(groupId, tag) {
-            if (!selections[groupId]) return false;
-            return selections[groupId].has(tag);
+        // 清空所有模式选择
+        clearAllModes: function() {
+            modeSelections.cpv.clear();
+            modeSelections.sku.clear();
+            saveSelections();
         },
-        
+
+        // 核心：执行选中标签（修复版）
         selectTags: async function(targets) {
             if (isProcessing) {
                 showToast('⏳ 正在执行中，请稍候...');
@@ -123,46 +143,53 @@ window.__MODULES__.tagOps = (function() {
             isProcessing = true;
             var startTime = performance.now();
             
+            // 设置超时保护
             operationTimeout = setTimeout(function() {
                 if (isProcessing) {
                     isProcessing = false;
-                    showToast('⏰ 操作超时', true);
+                    showToast('⏰ 操作超时（' + CONFIG.operationTimeout/1000 + '秒），请重试', true);
                 }
             }, CONFIG.operationTimeout);
 
             try {
-                var tagElements = document.querySelectorAll('.ant-tag-checkable, .ant-tag');
+                var tagElements = document.querySelectorAll('.ant-tag-checkable');
+                if (!tagElements.length) {
+                    showToast('⚠️ 未找到可操作标签', true);
+                    isProcessing = false;
+                    clearTimeout(operationTimeout);
+                    return;
+                }
+
                 var selected = 0;
                 var already = 0;
                 var errors = 0;
-                
+
+                // 遍历页面上所有标签，只操作匹配的
                 for (var i = 0; i < tagElements.length; i++) {
-                    var el = tagElements[i];
-                    var text = el.textContent.trim();
+                    var tag = tagElements[i];
+                    var text = tag.textContent.trim();
                     
+                    // 检查是否在目标列表中
                     if (targets.indexOf(text) === -1) continue;
-                    
-                    var isChecked = el.classList.contains('ant-tag-checkable-checked') || 
-                                   el.classList.contains('ant-tag-checked') ||
-                                   el.getAttribute('aria-checked') === 'true';
-                    
+
+                    var isChecked = tag.classList.contains('ant-tag-checkable-checked');
                     if (isChecked) {
                         already++;
                         continue;
                     }
-                    
+
                     try {
-                        if (document.contains(el)) {
-                            el.click();
+                        if (document.contains(tag)) {
+                            tag.click();
                             selected++;
                             await sleep(CONFIG.clickDelay);
                         }
                     } catch (e) {
                         errors++;
-                        if (CONFIG.debug) console.warn('点击失败:', text, e);
+                        if (CONFIG.debug) console.warn('点击失败 ' + text, e);
                     }
                 }
-                
+
                 var elapsed = (performance.now() - startTime).toFixed(0);
                 var msg = '🎉 完成！新选 ' + selected + ' 个，已选 ' + already + ' 个' + 
                          (errors ? ' (失败 ' + errors + ')' : '') + ' (' + elapsed + 'ms)';
@@ -178,46 +205,55 @@ window.__MODULES__.tagOps = (function() {
                 clearTimeout(operationTimeout);
             }
         },
-        
+
+        // 清除所有选中（界面标签）
         clearAllSelections: function() {
             if (isProcessing) {
                 showToast('⏳ 正在执行中，请稍候...');
                 return;
             }
-            
-            var tagElements = document.querySelectorAll('.ant-tag-checkable, .ant-tag');
+
+            var tags = document.querySelectorAll('.ant-tag-checkable');
             var cleared = 0;
+            var errors = 0;
             
-            tagElements.forEach(function(el) {
-                var isChecked = el.classList.contains('ant-tag-checkable-checked') || 
-                               el.classList.contains('ant-tag-checked') ||
-                               el.getAttribute('aria-checked') === 'true';
-                if (isChecked && document.contains(el)) {
+            tags.forEach(function(tag) {
+                if (tag.classList.contains('ant-tag-checkable-checked') && document.contains(tag)) {
                     try { 
-                        el.click(); 
+                        tag.click(); 
                         cleared++; 
-                    } catch (e) {}
+                    } catch (e) { 
+                        errors++; 
+                    }
                 }
             });
             
-            for (var key in selections) {
-                selections[key].clear();
-            }
+            // 清空内存状态
+            modeSelections[currentMode].clear();
             saveSelections();
             
-            showToast('🔄 已取消 ' + cleared + ' 个选中');
-            return cleared;
+            var msg = '🔄 已取消 ' + cleared + ' 个选中' + (errors ? ' (失败 ' + errors + ')' : '');
+            showToast(msg);
+            return msg;
         },
         
         isProcessing: function() {
             return isProcessing;
         },
         
-        restoreSelections: function(groupId, tags) {
-            if (selections[groupId]) {
-                selections[groupId] = new Set(tags || []);
-            }
-            saveSelections();
+        // 获取选中数量
+        getSelectedCount: function(mode) {
+            var targetMode = mode || currentMode;
+            return modeSelections[targetMode] ? modeSelections[targetMode].size : 0;
+        },
+        
+        // 获取状态快照（用于调试）
+        getStateSnapshot: function() {
+            return {
+                currentMode: currentMode,
+                cpv: Array.from(modeSelections.cpv),
+                sku: Array.from(modeSelections.sku)
+            };
         }
     };
 })();
