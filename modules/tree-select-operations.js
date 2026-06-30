@@ -8,7 +8,6 @@ window.__MODULES__.treeSelectOps = (function() {
     var isProcessing = false;
     var operationTimeout = null;
 
-    // 匹配目标文本（支持多种变体）
     function matchTargetText(text) {
         if (!text) return false;
         var trimmed = text.trim();
@@ -21,7 +20,6 @@ window.__MODULES__.treeSelectOps = (function() {
             return isProcessing;
         },
 
-        // 选择"无法判断"（增强版）
         selectTreeSelectUnable: async function() {
             if (isProcessing) {
                 showToast('⏳ 正在执行中，请稍候...');
@@ -31,7 +29,6 @@ window.__MODULES__.treeSelectOps = (function() {
             isProcessing = true;
             var startTime = performance.now();
             
-            // 超时保护
             operationTimeout = setTimeout(function() {
                 if (isProcessing) {
                     isProcessing = false;
@@ -48,15 +45,12 @@ window.__MODULES__.treeSelectOps = (function() {
                     return;
                 }
 
-                if (CONFIG.debug) console.log('找到 ' + treeSelects.length + ' 个 Tree Select 组件');
-
-                // 收集需要处理的组件
                 var needProcess = [];
                 for (var i = 0; i < treeSelects.length; i++) {
                     var select = treeSelects[i];
                     var selectionItem = select.querySelector('.ant-select-selection-item, .ant-select-selection-text');
                     if (selectionItem && matchTargetText(selectionItem.textContent)) {
-                        if (CONFIG.debug) console.log('第 ' + (i+1) + ' 个已经是目标值，跳过');
+                        // 已经是目标值，跳过
                     } else {
                         needProcess.push({ index: i, element: select });
                     }
@@ -69,9 +63,6 @@ window.__MODULES__.treeSelectOps = (function() {
                     return;
                 }
 
-                if (CONFIG.debug) console.log('需要处理 ' + needProcess.length + ' 个组件');
-
-                // 点击展开所有需要处理的下拉框
                 for (var j = 0; j < needProcess.length; j++) {
                     var item = needProcess[j];
                     var selector = item.element.querySelector('.ant-select-selector, .ant-select-selection');
@@ -85,7 +76,6 @@ window.__MODULES__.treeSelectOps = (function() {
 
                 await sleep(CONFIG.dropdownTimeout || 500);
 
-                // 收集所有可见下拉菜单
                 var allDropdowns = document.querySelectorAll('.ant-select-dropdown, .ant-select-tree-dropdown');
                 var visibleDropdowns = [];
                 for (var k = 0; k < allDropdowns.length; k++) {
@@ -96,9 +86,6 @@ window.__MODULES__.treeSelectOps = (function() {
                     }
                 }
 
-                if (CONFIG.debug) console.log('找到 ' + visibleDropdowns.length + ' 个可见下拉菜单');
-
-                // 建立映射关系
                 var dropdownMap = new Map();
                 for (var m = 0; m < Math.min(needProcess.length, visibleDropdowns.length); m++) {
                     dropdownMap.set(needProcess[m].element, visibleDropdowns[m]);
@@ -107,7 +94,6 @@ window.__MODULES__.treeSelectOps = (function() {
                 var successCount = 0;
                 var failCount = 0;
 
-                // 逐个处理
                 for (var n = 0; n < needProcess.length; n++) {
                     var curItem = needProcess[n];
                     var curDropdown = dropdownMap.get(curItem.element);
@@ -151,13 +137,12 @@ window.__MODULES__.treeSelectOps = (function() {
                         }
                     }
 
-                    // 方法C：直接查找包含目标文本的元素
+                    // 方法C：直接查找
                     if (!targetNode) {
                         var allElements = curDropdown.querySelectorAll('*');
                         for (var r = 0; r < allElements.length; r++) {
                             var el = allElements[r];
                             if (el.children.length === 0 && matchTargetText(el.textContent)) {
-                                // 检查是否是叶子节点
                                 var parent = el.parentElement;
                                 if (parent && (parent.classList.contains('ant-tree-treenode') || 
                                               parent.classList.contains('ant-select-tree-treenode'))) {
@@ -180,19 +165,15 @@ window.__MODULES__.treeSelectOps = (function() {
                             await sleep(CONFIG.clickDelay || 50);
                         } catch (e) {
                             failCount++;
-                            if (CONFIG.debug) console.warn('点击目标失败:', e);
                         }
                     } else {
                         failCount++;
-                        if (CONFIG.debug) console.warn('未找到目标节点:', curItem.element);
                     }
                 }
 
                 await sleep(200);
 
-                // 关闭所有下拉（多种方式）
                 try {
-                    // 方式1: ESC键
                     var escEvent = new KeyboardEvent('keydown', {
                         key: 'Escape',
                         code: 'Escape',
@@ -204,13 +185,7 @@ window.__MODULES__.treeSelectOps = (function() {
                     });
                     document.dispatchEvent(escEvent);
                 } catch (e) {
-                    try { 
-                        // 方式2: 点击页面空白
-                        document.body.click(); 
-                    } catch (e2) {
-                        // 方式3: 清空选择
-                        document.activeElement?.blur?.();
-                    }
+                    try { document.body.click(); } catch (e2) {}
                 }
 
                 var elapsed = (performance.now() - startTime).toFixed(0);
@@ -226,38 +201,6 @@ window.__MODULES__.treeSelectOps = (function() {
             } finally {
                 isProcessing = false;
                 clearTimeout(operationTimeout);
-            }
-        },
-        
-        // 重置所有下拉框
-        resetAllTreeSelects: async function() {
-            if (isProcessing) {
-                showToast('⏳ 正在执行中，请稍候...');
-                return;
-            }
-
-            isProcessing = true;
-            try {
-                var treeSelects = document.querySelectorAll('.ant-tree-select, .ant-select-tree-select');
-                var resetCount = 0;
-                
-                for (var i = 0; i < treeSelects.length; i++) {
-                    var select = treeSelects[i];
-                    var clearBtn = select.querySelector('.ant-select-clear, .ant-select-selection-clear');
-                    if (clearBtn) {
-                        clearBtn.click();
-                        resetCount++;
-                        await sleep(CONFIG.clickDelay || 50);
-                    }
-                }
-                
-                showToast('🔄 已重置 ' + resetCount + ' 个下拉框');
-                return resetCount;
-            } catch (error) {
-                showToast('❌ 重置失败: ' + error.message, true);
-                console.error('resetAllTreeSelects error:', error);
-            } finally {
-                isProcessing = false;
             }
         }
     };
