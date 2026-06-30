@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         标注助手
 // @namespace    http://tampermonkey.net/
-// @version      2.0.0
-// @description  标注助手 - CPV/SKU 双模式切换
+// @version      2.1.0
+// @description  标注助手 - 分组布局 + 模板管理
 // @author       Z
 // @match        *://*/*
 // @grant        none
@@ -10,6 +10,7 @@
 // @updateURL    https://raw.githubusercontent.com/z7686n/test/main/zdh.user.js
 // @require      https://raw.githubusercontent.com/z7686n/test/main/modules/config.js
 // @require      https://raw.githubusercontent.com/z7686n/test/main/modules/utils.js
+// @require      https://raw.githubusercontent.com/z7686n/test/main/modules/template-manager.js
 // @require      https://raw.githubusercontent.com/z7686n/test/main/modules/tag-operations.js
 // @require      https://raw.githubusercontent.com/z7686n/test/main/modules/tree-select-operations.js
 // @require      https://raw.githubusercontent.com/z7686n/test/main/modules/ui-panel.js
@@ -70,7 +71,7 @@
             // 执行加载
             uiModule.buildAndWatchPanel();
             isLoaded = true;
-            logger.info('标注助手 v2.1.0 已加载 [CPV/SKU 双模式]');
+            logger.info('标注助手 v2.1.0 已加载 [分组布局 + 模板管理]');
             
             // 清理重试定时器
             if (window.__retryTimer) {
@@ -138,13 +139,11 @@
             if (isLoaded) {
                 logger.info('检测到页面变化，重新初始化...');
                 isLoaded = false;
-                // 延迟重新加载，等待DOM更新
                 setTimeout(loadModule, 1000);
             }
         }
     });
     
-    // 仅在页面加载完成后启动观察
     if (document.readyState === 'complete') {
         urlObserver.observe(document, { subtree: true, childList: true });
     } else {
@@ -153,7 +152,6 @@
         });
     }
 
-    // 启动加载
     loadModule();
 
     // 清理函数
